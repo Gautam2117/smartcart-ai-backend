@@ -56,7 +56,7 @@ User Query: "${userQuery}"
 
     const reply = response.data.choices[0].message.content;
     console.log("AI Raw Response:\n", reply);
-    res.json({ reply });
+    res.json(JSON.parse(reply));
 
   } catch (error) {
     console.error(error.response?.data || error.message);
