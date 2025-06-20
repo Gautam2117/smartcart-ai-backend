@@ -10,35 +10,36 @@ app.use(express.json());
 app.post('/chat', async (req, res) => {
   const userQuery = req.body.message;
 
-  // Strict system prompt
   const systemPrompt = `
-You are SmartCart AI, a shopping assistant. 
+You are SmartCart AI, a highly skilled product recommendation system for e-commerce.
 
 ❗ STRICT INSTRUCTIONS:
-
-- Your entire reply must be ONLY valid JSON.
-- DO NOT add any text, intro, markdown, or explanations.
+- Output STRICTLY valid JSON only.
+- NO extra explanation, no markdown, no surrounding text.
 - Format: 
 [
   {
     "name": "Product Name",
-    "price": price_in_INR_as_integer,
-    "stock": stock_as_integer_between_5_and_20
-  },
-  ...
+    "brand": "Brand Name",
+    "price": integer_price_in_INR,
+    "stock": estimated_stock_available (integer between 0 and 100),
+    "rating": float between 3.5 and 5.0 (more realistic values),
+    "description": "Short 1-2 line description",
+    "features": ["Feature 1", "Feature 2", ...],
+    "url": "Valid product link (dummy allowed)"
+  }
 ]
 
 - Minimum 3 products, maximum 6.
-- Use real products relevant to user's query.
-- Prices should be realistic for Indian market.
-- Output PURE valid JSON without any surrounding text.
+- Use real brands available in India (Amazon, Flipkart, Myntra, etc.).
+- Prices should match Indian market.
+- Features should be very short 3-5 bullet points per product.
+- Output ONLY valid JSON.
 
 User Query: "${userQuery}"
   `;
 
-  const messages = [
-    { role: "system", content: systemPrompt }
-  ];
+  const messages = [{ role: "system", content: systemPrompt }];
 
   try {
     const response = await axios.post(
@@ -63,19 +64,18 @@ User Query: "${userQuery}"
     try {
       parsed = JSON.parse(rawReply);
     } catch (parseError) {
-      console.error("❌ JSON Parsing Failed:", parseError);
+      console.error("JSON Parsing Failed:", parseError);
       return res.status(500).send("AI returned invalid JSON.");
     }
 
     if (!Array.isArray(parsed)) {
-      console.error("❌ Invalid structure (not array).");
       return res.status(500).send("AI returned unexpected format.");
     }
 
-    res.json(parsed);  // ✅ Directly send pure JSON array to frontend
+    res.json(parsed);
 
   } catch (error) {
-    console.error("❌ DeepSeek API Error:", error.response?.data || error.message);
+    console.error("DeepSeek API Error:", error.response?.data || error.message);
     res.status(500).send('AI processing failed.');
   }
 });
