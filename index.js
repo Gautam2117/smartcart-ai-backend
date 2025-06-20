@@ -10,29 +10,31 @@ app.use(express.json());
 app.post('/chat', async (req, res) => {
   const userQuery = req.body.message;
 
-  // Craft strict system prompt for perfect structured response
+  // Strict system prompt
   const systemPrompt = `
-You are SmartCart AI, a shopping assistant. Your task is to recommend products based on user queries.
+You are SmartCart AI, a shopping assistant. 
 
-**IMPORTANT INSTRUCTIONS:**
+❗ STRICT INSTRUCTIONS:
 
-- Return your response strictly as valid JSON only.
-- Do NOT include any explanation, markdown, or extra text outside JSON.
-- Format:
-
+- Your entire reply must be ONLY valid JSON.
+- DO NOT add any text, intro, markdown, or explanations.
+- Format: 
 [
   {
     "name": "Product Name",
-    "price": Product_Price_in_Integer_Rupees,
-    "stock": Stock_Availability_Integer (random between 5 and 20)
+    "price": price_in_INR_as_integer,
+    "stock": stock_as_integer_between_5_and_20
   },
   ...
 ]
 
-- Always give minimum 3 and maximum 6 products.
+- Minimum 3 products, maximum 6.
+- Use real products relevant to user's query.
+- Prices should be realistic for Indian market.
+- Output PURE valid JSON without any surrounding text.
 
 User Query: "${userQuery}"
-`;
+  `;
 
   const messages = [
     { role: "system", content: systemPrompt }
@@ -44,7 +46,7 @@ User Query: "${userQuery}"
       {
         model: "deepseek-chat",
         messages: messages,
-        temperature: 0.7
+        temperature: 0.5
       },
       {
         headers: {
@@ -54,15 +56,29 @@ User Query: "${userQuery}"
       }
     );
 
-    const reply = response.data.choices[0].message.content;
-    console.log("AI Raw Response:\n", reply);
-    res.json(JSON.parse(reply));
+    const rawReply = response.data.choices[0].message.content;
+    console.log("AI Raw Reply:\n", rawReply);
+
+    let parsed;
+    try {
+      parsed = JSON.parse(rawReply);
+    } catch (parseError) {
+      console.error("❌ JSON Parsing Failed:", parseError);
+      return res.status(500).send("AI returned invalid JSON.");
+    }
+
+    if (!Array.isArray(parsed)) {
+      console.error("❌ Invalid structure (not array).");
+      return res.status(500).send("AI returned unexpected format.");
+    }
+
+    res.json(parsed);  // ✅ Directly send pure JSON array to frontend
 
   } catch (error) {
-    console.error(error.response?.data || error.message);
-    res.status(500).send('AI error');
+    console.error("❌ DeepSeek API Error:", error.response?.data || error.message);
+    res.status(500).send('AI processing failed.');
   }
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`SmartCart AI (DeepSeek JSON version) Backend running on port ${PORT}`));
+app.listen(PORT, () => console.log(`✅ SmartCart AI Backend running on port ${PORT}`));
