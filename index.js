@@ -4,7 +4,11 @@ const cors = require('cors');
 const axios = require('axios');
 
 const app = express();
-app.use(cors());
+const corsOptions = {
+  origin: ['http://localhost:5173', 'https://smartcart-beige.vercel.app/'], 
+  credentials: true,
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // ✅ AI Product Search with Real-Time Inventory
