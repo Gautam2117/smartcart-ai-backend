@@ -2,9 +2,11 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const mongoose = require('mongoose');  // ✅ Added MongoDB for behavioral engine
+const mongoose = require('mongoose');
 
 const app = express();
+
+// ✅ CORS setup
 const corsOptions = {
   origin: ['http://localhost:5173', 'https://smartcart-beige.vercel.app/'],
   credentials: true,
@@ -13,11 +15,13 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 // ✅ MongoDB connection
-mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true, useUnifiedTopology: true
+})
   .then(() => console.log('✅ Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
+  .catch(err => console.error('❌ MongoDB connection error:', err));
 
-// ✅ Search history schema
+// ✅ MongoDB Schema for search history
 const searchHistorySchema = new mongoose.Schema({
   userId: String,
   query: String,
@@ -25,25 +29,25 @@ const searchHistorySchema = new mongoose.Schema({
 });
 const SearchHistory = mongoose.model('SearchHistory', searchHistorySchema);
 
-// ✅ Save history endpoint
+// ✅ Save search history API
 app.post('/save-history', async (req, res) => {
   const { userId, query } = req.body;
-  if (!query) return res.status(400).send('Missing query');
+  if (!query || !userId) return res.status(400).send('Missing userId or query');
   await SearchHistory.create({ userId, query });
   res.sendStatus(200);
 });
 
-// ✅ Get history endpoint
+// ✅ Get search history API
 app.get('/get-history/:userId', async (req, res) => {
   const userId = req.params.userId;
   const history = await SearchHistory.find({ userId }).sort({ timestamp: -1 }).limit(10);
   res.json(history.map(item => item.query));
 });
 
-// ✅ AI Product Search with Real-Time Inventory
+// ✅ AI Product Search
 app.post('/chat', async (req, res) => {
   const userQuery = req.body.message;
-  const userId = req.body.userId || "default-user";
+  const userId = req.body.userId || "guest";
 
   const systemPrompt = `
 You are SmartCart AI, a highly skilled product recommendation system for e-commerce.
@@ -96,7 +100,6 @@ User Query: "${userQuery}"
         const inventoryResp = await axios.get(
           `https://dummyjson.com/products/search?q=${encodeURIComponent(product.name)}`
         );
-
         if (inventoryResp.data?.products?.length > 0) {
           const stock = inventoryResp.data.products[0].stock;
           return { ...product, stock };
@@ -108,7 +111,7 @@ User Query: "${userQuery}"
       }
     }));
 
-    // ✅ Save search query into MongoDB after successful response
+    // ✅ Save history after successful response
     await SearchHistory.create({ userId, query: userQuery });
 
     res.json(enrichedProducts);
@@ -119,7 +122,7 @@ User Query: "${userQuery}"
   }
 });
 
-// ✅ AI Bundle Suggestion Endpoint
+// ✅ Bundle suggestion API
 app.post('/bundle', async (req, res) => {
   const product = req.body.product;
 
@@ -167,5 +170,6 @@ Output ONLY valid JSON. No extra explanation.
   }
 });
 
+// ✅ Server port
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`✅ SmartCart AI backend fully running on port ${PORT}`));
