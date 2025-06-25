@@ -2,18 +2,48 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const mongoose = require('mongoose');  // ✅ Added MongoDB for behavioral engine
 
 const app = express();
 const corsOptions = {
-  origin: ['http://localhost:5173', 'https://smartcart-beige.vercel.app/'], 
+  origin: ['http://localhost:5173', 'https://smartcart-beige.vercel.app/'],
   credentials: true,
 };
 app.use(cors(corsOptions));
 app.use(express.json());
 
+// ✅ MongoDB connection
+mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log('✅ Connected to MongoDB'))
+  .catch(err => console.error('MongoDB connection error:', err));
+
+// ✅ Search history schema
+const searchHistorySchema = new mongoose.Schema({
+  userId: String,
+  query: String,
+  timestamp: { type: Date, default: Date.now }
+});
+const SearchHistory = mongoose.model('SearchHistory', searchHistorySchema);
+
+// ✅ Save history endpoint
+app.post('/save-history', async (req, res) => {
+  const { userId, query } = req.body;
+  if (!query) return res.status(400).send('Missing query');
+  await SearchHistory.create({ userId, query });
+  res.sendStatus(200);
+});
+
+// ✅ Get history endpoint
+app.get('/get-history/:userId', async (req, res) => {
+  const userId = req.params.userId;
+  const history = await SearchHistory.find({ userId }).sort({ timestamp: -1 }).limit(10);
+  res.json(history.map(item => item.query));
+});
+
 // ✅ AI Product Search with Real-Time Inventory
 app.post('/chat', async (req, res) => {
   const userQuery = req.body.message;
+  const userId = req.body.userId || "default-user";
 
   const systemPrompt = `
 You are SmartCart AI, a highly skilled product recommendation system for e-commerce.
@@ -69,15 +99,17 @@ User Query: "${userQuery}"
 
         if (inventoryResp.data?.products?.length > 0) {
           const stock = inventoryResp.data.products[0].stock;
-          return { ...product, stock };  // Real stock
+          return { ...product, stock };
         } else {
-          return { ...product, stock: Math.floor(Math.random() * 40 + 10) }; // Fallback stock
+          return { ...product, stock: Math.floor(Math.random() * 40 + 10) };
         }
-      } catch (err) {
-        console.error("DummyJSON error:", err.message);
+      } catch {
         return { ...product, stock: Math.floor(Math.random() * 40 + 10) };
       }
     }));
+
+    // ✅ Save search query into MongoDB after successful response
+    await SearchHistory.create({ userId, query: userQuery });
 
     res.json(enrichedProducts);
 
