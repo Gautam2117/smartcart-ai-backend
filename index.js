@@ -22,7 +22,7 @@ STRICT INSTRUCTIONS:
     "name": "Product Name",
     "brand": "Brand Name",
     "price": integer_price_in_INR,
-    "stock": -1,  // <-- Leave stock as -1, backend will update
+    "stock": -1,
     "rating": float_between_3.5_and_5.0,
     "description": "Short 1-2 line description",
     "features": ["Feature 1", "Feature 2", ...],
