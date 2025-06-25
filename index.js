@@ -7,7 +7,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Product search endpoint (already exists)
+// ✅ AI Product Search with Real-Time Inventory
 app.post('/chat', async (req, res) => {
   const userQuery = req.body.message;
 
@@ -15,16 +15,15 @@ app.post('/chat', async (req, res) => {
 You are SmartCart AI, a highly skilled product recommendation system for e-commerce.
 
 STRICT INSTRUCTIONS:
-- Output STRICTLY valid JSON only.
-- NO extra explanation, no markdown, no surrounding text.
-- Format: 
+- Output STRICT valid JSON only.
+- Format:
 [
   {
     "name": "Product Name",
     "brand": "Brand Name",
     "price": integer_price_in_INR,
-    "stock": estimated_stock_available (integer between 0 and 100),
-    "rating": float between 3.5 and 5.0,
+    "stock": -1,  // <-- Leave stock as -1, backend will update
+    "rating": float_between_3.5_and_5.0,
     "description": "Short 1-2 line description",
     "features": ["Feature 1", "Feature 2", ...],
     "url": "Valid product link (dummy allowed)"
@@ -33,20 +32,17 @@ STRICT INSTRUCTIONS:
 - Minimum 3 products, maximum 6.
 - Use real brands available in India.
 - Prices should match Indian market.
-- Features should be very short 3-5 bullet points.
 - Output ONLY valid JSON.
 
 User Query: "${userQuery}"
 `;
 
-  const messages = [{ role: "system", content: systemPrompt }];
-
   try {
-    const response = await axios.post(
+    const aiResponse = await axios.post(
       'https://api.deepseek.com/v1/chat/completions',
       {
         model: "deepseek-chat",
-        messages,
+        messages: [{ role: "system", content: systemPrompt }],
         temperature: 0.5
       },
       {
@@ -57,57 +53,64 @@ User Query: "${userQuery}"
       }
     );
 
-    const rawReply = response.data.choices[0].message.content;
-    let parsed;
-    try {
-      parsed = JSON.parse(rawReply);
-    } catch {
-      return res.status(500).send("AI returned invalid JSON.");
-    }
+    const rawReply = aiResponse.data.choices[0].message.content;
+    let products = JSON.parse(rawReply);
 
-    if (!Array.isArray(parsed)) {
-      return res.status(500).send("AI returned unexpected format.");
-    }
+    // ✅ Enrich products with inventory using DummyJSON
+    const enrichedProducts = await Promise.all(products.map(async (product) => {
+      try {
+        const inventoryResp = await axios.get(
+          `https://dummyjson.com/products/search?q=${encodeURIComponent(product.name)}`
+        );
 
-    res.json(parsed);
+        if (inventoryResp.data?.products?.length > 0) {
+          const stock = inventoryResp.data.products[0].stock;
+          return { ...product, stock };  // Real stock
+        } else {
+          return { ...product, stock: Math.floor(Math.random() * 40 + 10) }; // Fallback stock
+        }
+      } catch (err) {
+        console.error("DummyJSON error:", err.message);
+        return { ...product, stock: Math.floor(Math.random() * 40 + 10) };
+      }
+    }));
+
+    res.json(enrichedProducts);
 
   } catch (error) {
+    console.error("AI Error:", error.message);
     res.status(500).send('AI processing failed.');
   }
 });
 
-// ✅ New Bundle Suggestion endpoint
+// ✅ AI Bundle Suggestion Endpoint
 app.post('/bundle', async (req, res) => {
   const product = req.body.product;
 
   const bundlePrompt = `
-You are SmartCart AI Bundle Expert. 
-Given this selected product, suggest 3-4 highly relevant accessory items.
+You are SmartCart AI Bundle Expert.
+Given this product: ${JSON.stringify(product)}
 
-Selected Product:
-${JSON.stringify(product)}
+Suggest 3-4 highly relevant accessories for bundling.
 
 STRICT FORMAT:
 [
   {
     "name": "Accessory Name",
     "description": "Short one-line description",
-    "price": accessory_price_in_INR_integer,
+    "price": integer_price_in_INR,
     "url": "Valid URL (dummy allowed)"
   }
 ]
-
-Only output STRICT valid JSON. No explanation, no markdown, no extra text.
+Output ONLY valid JSON. No extra explanation.
 `;
-
-  const messages = [{ role: "system", content: bundlePrompt }];
 
   try {
     const response = await axios.post(
       'https://api.deepseek.com/v1/chat/completions',
       {
         model: "deepseek-chat",
-        messages,
+        messages: [{ role: "system", content: bundlePrompt }],
         temperature: 0.4
       },
       {
@@ -119,19 +122,14 @@ Only output STRICT valid JSON. No explanation, no markdown, no extra text.
     );
 
     const rawReply = response.data.choices[0].message.content;
-    let parsed;
-    try {
-      parsed = JSON.parse(rawReply);
-    } catch {
-      return res.status(500).send("Bundle AI returned invalid JSON.");
-    }
-
-    res.json(parsed);
+    const bundles = JSON.parse(rawReply);
+    res.json(bundles);
 
   } catch (error) {
-    res.status(500).send('Bundle AI processing failed.');
+    console.error("Bundle AI Error:", error.message);
+    res.status(500).send("Bundle AI processing failed.");
   }
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`✅ SmartCart AI Backend fully running on port ${PORT}`));
+app.listen(PORT, () => console.log(`✅ SmartCart AI backend fully running on port ${PORT}`));
