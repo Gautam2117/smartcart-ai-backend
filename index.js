@@ -97,15 +97,20 @@ User Query: "${userQuery}"
       }
     );
 
-    const rawReply = aiResponse.data.choices[0].message.content;
-    let products = JSON.parse(rawReply);
+    let rawReply = aiResponse.data.choices[0].message.content;
 
-    // ✅ Enrich products with inventory using DummyJSON
+    // ✅ Clean AI output
+    const cleanedReply = rawReply
+      .replace(/```json\s*/gi, '')
+      .replace(/```/g, '')
+      .trim();
+
+    let products = JSON.parse(cleanedReply);
+
+    // ✅ Enrich products with inventory
     const enrichedProducts = await Promise.all(products.map(async (product) => {
       try {
-        const inventoryResp = await axios.get(
-          `https://dummyjson.com/products/search?q=${encodeURIComponent(product.name)}`
-        );
+        const inventoryResp = await axios.get(`https://dummyjson.com/products/search?q=${encodeURIComponent(product.name)}`);
         if (inventoryResp.data?.products?.length > 0) {
           const stock = inventoryResp.data.products[0].stock;
           return { ...product, stock };
@@ -117,9 +122,7 @@ User Query: "${userQuery}"
       }
     }));
 
-    // ✅ Save history after successful response
     await SearchHistory.create({ userId, query: userQuery });
-
     res.json(enrichedProducts);
 
   } catch (error) {
