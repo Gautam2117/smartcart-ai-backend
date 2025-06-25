@@ -11,7 +11,13 @@ const corsOptions = {
   origin: ['http://localhost:5173', 'https://smartcart-beige.vercel.app/'],
   credentials: true,
 };
-app.use(cors(corsOptions));
+app.use(cors({
+  origin: function (origin, callback) {
+    callback(null, true);  // Allow all origins for now (for development safety)
+  },
+  credentials: true
+}));
+
 app.use(express.json());
 
 // ✅ MongoDB connection
